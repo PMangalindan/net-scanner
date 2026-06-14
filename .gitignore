@@ -1,0 +1,20 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+myenv/
+.venv/
+venv/
+
+# Tooling and test cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local env and editor
+.env
+.vscode/
+
+# Generated scan outputs
+scan_results*.json
