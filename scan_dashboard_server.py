@@ -10,6 +10,7 @@ from the dashboard and immediately refresh the visuals.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import logging.handlers
 import re
@@ -102,6 +103,11 @@ def parse_args() -> argparse.Namespace:
         help="Pre-filled workers value in the scan form.",
     )
     parser.add_argument(
+        "--state-file",
+        default="scan_dashboard_state.json",
+        help="Path to the dashboard state file (default: scan_dashboard_state.json).",
+    )
+    parser.add_argument(
         "--default-timeout",
         type=float,
         default=1.0,
@@ -161,6 +167,34 @@ def count_scanned_hosts(output_text: str) -> str:
     return match.group(1)
 
 
+def load_state(state_path: Path) -> dict[str, str]:
+    try:
+        content = state_path.read_text(encoding="utf-8").strip()
+        if not content:
+            return {}
+        data = json.loads(content)
+        if isinstance(data, dict):
+            return {
+                key: str(value)
+                for key, value in data.items()
+                if isinstance(value, (str, int, float))
+            }
+    except FileNotFoundError:
+        return {}
+    except Exception:
+        log.warning("Could not load state from %s", state_path, exc_info=True)
+    return {}
+
+
+def save_state(state_path: Path, cidr: str) -> None:
+    payload = {"last_successful_cidr": cidr}
+    try:
+        state_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        log.debug("Saved dashboard state to %s", state_path)
+    except Exception:
+        log.warning("Could not save state to %s", state_path, exc_info=True)
+
+
 def build_controls_html(defaults: dict[str, str], message: str, level: str) -> str:
     message_html = ""
     if message:
@@ -202,6 +236,7 @@ def build_controls_html(defaults: dict[str, str], message: str, level: str) -> s
       .scan-form {{
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+
         gap: 10px;
         align-items: end;
       }}
@@ -409,11 +444,13 @@ class DashboardServer(ThreadingHTTPServer):
         handler_class: type[BaseHTTPRequestHandler],
         results_path: Path,
         scanner_path: Path,
+        state_path: Path,
         form_defaults: dict[str, str],
     ) -> None:
         super().__init__(server_address, handler_class)
         self.results_path = results_path
         self.scanner_path = scanner_path
+        self.state_path = state_path
         self.form_defaults = form_defaults
 
 
@@ -425,6 +462,7 @@ def main() -> int:
 
     results_path = Path(args.input).expanduser().resolve()
     scanner_path = Path(args.scanner).expanduser().resolve()
+    state_path = Path(args.state_file).expanduser().resolve()
 
     if not scanner_path.exists():
         log.error("Scanner script not found: %s", scanner_path)
@@ -439,11 +477,18 @@ def main() -> int:
         "snmp_community": args.default_snmp_community,
     }
 
+    state = load_state(state_path)
+    last_successful_cidr = state.get("last_successful_cidr")
+    if last_successful_cidr:
+        form_defaults["cidr"] = last_successful_cidr
+        log.info("Loaded last successful CIDR from state: %s", last_successful_cidr)
+
     server = DashboardServer(
         (args.host, args.port),
         DashboardHandler,
         results_path,
         scanner_path,
+        state_path,
         form_defaults,
     )
 
