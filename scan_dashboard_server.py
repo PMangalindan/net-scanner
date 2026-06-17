@@ -10,6 +10,8 @@ from the dashboard and immediately refresh the visuals.
 from __future__ import annotations
 
 import argparse
+import logging
+import logging.handlers
 import re
 import subprocess
 import sys
@@ -21,6 +23,31 @@ from typing import Any
 from urllib.parse import parse_qs, quote_plus, urlparse
 
 from visualize_scan_results import load_results, render_html, safe_html
+
+log = logging.getLogger("scan_dashboard")
+
+
+def setup_logging(log_file: Path | None, debug: bool) -> None:
+    level = logging.DEBUG if debug else logging.INFO
+    fmt = logging.Formatter(
+        "%(asctime)s  %(levelname)-8s  %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    root = logging.getLogger()
+    root.setLevel(level)
+
+    console = logging.StreamHandler(sys.stdout)
+    console.setFormatter(fmt)
+    root.addHandler(console)
+
+    if log_file:
+        rotating = logging.handlers.RotatingFileHandler(
+            log_file, maxBytes=2 * 1024 * 1024, backupCount=3, encoding="utf-8"
+        )
+        rotating.setFormatter(fmt)
+        root.addHandler(rotating)
+        log.info("Logging to file: %s", log_file)
 
 
 def parse_args() -> argparse.Namespace:
@@ -52,6 +79,16 @@ def parse_args() -> argparse.Namespace:
         "--open",
         action="store_true",
         help="Open dashboard in browser after startup.",
+    )
+    parser.add_argument(
+        "--log-file",
+        default=None,
+        help="Optional path to a rotating log file (default: console only).",
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable DEBUG-level logging.",
     )
     parser.add_argument(
         "--default-cidr",
@@ -225,7 +262,9 @@ def build_dashboard_page(
 ) -> str:
     try:
         results = load_results(results_path)
+        log.debug("Loaded %d result(s) from %s", len(results), results_path)
     except Exception:
+        log.warning("Could not load results from %s — showing empty dashboard", results_path, exc_info=True)
         results = []
 
     base_html = render_html(results, results_path)
@@ -240,7 +279,9 @@ def build_dashboard_page(
 class DashboardHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
+        log.debug("GET %s from %s", parsed.path, self.client_address[0])
         if parsed.path != "/":
+            log.warning("GET %s — 404 from %s", parsed.path, self.client_address[0])
             self.send_error(HTTPStatus.NOT_FOUND, "Not found")
             return
 
@@ -269,7 +310,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self) -> None:
+        log.debug("POST %s from %s", self.path, self.client_address[0])
         if self.path != "/run-scan":
+            log.warning("POST %s — 404 from %s", self.path, self.client_address[0])
             self.send_error(HTTPStatus.NOT_FOUND, "Not found")
             return
 
@@ -320,6 +363,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if online_only:
                 command.append("--online-only")
 
+            log.info("Scan starting: cidr=%s workers=%s timeout=%s port_timeout=%s ports=%s snmp=%s",
+                     cidr, workers, timeout, port_timeout, ports, snmp)
+            log.debug("Scan command: %s", " ".join(command))
+
             completed = subprocess.run(command, capture_output=True, text=True, check=False)
             output_text = (completed.stdout or "") + "\n" + (completed.stderr or "")
 
@@ -327,17 +374,21 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 scanned_hosts = count_scanned_hosts(output_text)
                 message = f"Scan of {cidr} finished. Hosts scanned: {scanned_hosts}."
                 level = "success"
+                log.info("Scan completed: cidr=%s hosts_scanned=%s", cidr, scanned_hosts)
+                log.debug("Scanner stdout:\n%s", output_text.strip())
             else:
-                # Show last 5 lines so error context is visible in the dashboard.
                 condensed = " | ".join(
                     line for line in output_text.strip().splitlines()[-5:] if line.strip()
                 )
                 message = f"Scan of {cidr} failed (exit {completed.returncode}). {condensed or 'Check terminal output.'}"
                 level = "error"
+                log.error("Scan failed: cidr=%s exit_code=%d\n%s",
+                          cidr, completed.returncode, output_text.strip())
 
         except Exception as exc:
             message = f"Scan request error: {exc}"
             level = "error"
+            log.exception("Unhandled error during scan request")
 
         # Carry submitted form values back so the form re-populates after redirect.
         form_params = "&".join(f"{k}={quote_plus(v)}" for k, v in raw.items())
@@ -347,7 +398,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def log_message(self, format: str, *args: Any) -> None:
-        return
+        # Route BaseHTTPServer access log through our logger at DEBUG level.
+        log.debug("HTTP %s", (format % args) if args else format)
 
 
 class DashboardServer(ThreadingHTTPServer):
@@ -368,11 +420,14 @@ class DashboardServer(ThreadingHTTPServer):
 def main() -> int:
     args = parse_args()
 
+    log_file = Path(args.log_file).expanduser().resolve() if args.log_file else None
+    setup_logging(log_file, args.debug)
+
     results_path = Path(args.input).expanduser().resolve()
     scanner_path = Path(args.scanner).expanduser().resolve()
 
     if not scanner_path.exists():
-        print(f"Scanner script not found: {scanner_path}", file=sys.stderr)
+        log.error("Scanner script not found: %s", scanner_path)
         return 1
 
     form_defaults = {
@@ -393,7 +448,10 @@ def main() -> int:
     )
 
     url = f"http://{args.host}:{args.port}/"
-    print(f"Dashboard server running at {url}")
+    log.info("Dashboard server running at %s", url)
+    log.info("Results file : %s", results_path)
+    log.info("Scanner script: %s", scanner_path)
+    log.info("Press Ctrl+C to stop.")
 
     if args.open:
         webbrowser.open(url)
@@ -401,9 +459,12 @@ def main() -> int:
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nShutting down dashboard server...")
+        log.info("Shutting down dashboard server...")
+    except Exception:
+        log.exception("Unexpected server error")
     finally:
         server.server_close()
+        log.info("Server stopped.")
 
     return 0
 
