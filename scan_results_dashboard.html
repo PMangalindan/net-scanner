@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Network Scan Dashboard</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --ink: #141a2a;
+      --muted: #5f6a88;
+      --brand: #0f7b6c;
+      --brand-soft: #dff4f1;
+      --warn: #f4b400;
+      --danger: #d93025;
+      --ring: #d7deef;
+      --shadow: 0 10px 28px rgba(20, 26, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Trebuchet MS", Verdana, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 500px at -10% -20%, #d7ecff 0%, transparent 60%),
+        radial-gradient(1000px 450px at 110% -10%, #d7f7ef 0%, transparent 60%),
+        var(--bg);
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 32px auto;
+      padding: 0 16px 28px;
+    }
+
+    .header {
+      background: linear-gradient(130deg, #0f7b6c, #1269a8);
+      color: #fff;
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+    }
+
+    .header h1 {
+      margin: 0 0 8px;
+      font-size: 1.6rem;
+      letter-spacing: 0.3px;
+    }
+
+    .header p {
+      margin: 4px 0;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 0.95rem;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 12px;
+      margin: 16px 0;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--ring);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 14px;
+    }
+
+    .card .label {
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .card .value {
+      margin-top: 8px;
+      font-size: 1.6rem;
+      font-weight: 700;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--ring);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 14px;
+      overflow: hidden;
+    }
+
+    .panel h2 {
+      margin: 0 0 12px;
+      font-size: 1.04rem;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: minmax(120px, 220px) 1fr minmax(70px, 90px);
+      align-items: center;
+      gap: 10px;
+      margin: 8px 0;
+    }
+
+    .bar-label {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 0.92rem;
+    }
+
+    .bar-track {
+      background: #ebeff9;
+      border-radius: 999px;
+      height: 12px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      background: linear-gradient(90deg, #11846f, #17a4d6);
+      height: 100%;
+      border-radius: inherit;
+    }
+
+    .bar-meta {
+      text-align: right;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: 12px;
+      border: 1px solid var(--ring);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 860px;
+      background: #fff;
+    }
+
+    thead th {
+      text-align: left;
+      font-size: 0.82rem;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: #f1f5ff;
+      border-bottom: 1px solid var(--ring);
+      padding: 10px;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    tbody td {
+      border-bottom: 1px solid #eef2fb;
+      padding: 10px;
+      font-size: 0.9rem;
+      vertical-align: top;
+    }
+
+    tbody tr:hover {
+      background: #f7fbff;
+    }
+
+    .pill {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 10px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .pill.up {
+      color: #0a6f60;
+      background: var(--brand-soft);
+    }
+
+    .pill.down {
+      color: #9b1b14;
+      background: #fee8e7;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    @media (max-width: 960px) {
+      .split {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Network Scan Dashboard</h1>
+      <p>Source: scan_results.json</p>
+      <p>Generated: 2026-06-17 16:40:49</p>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="label">Hosts Scanned</div>
+        <div class="value">1</div>
+      </div>
+      <div class="card">
+        <div class="label">Online Hosts</div>
+        <div class="value">1</div>
+      </div>
+      <div class="card">
+        <div class="label">Offline Hosts</div>
+        <div class="value">0</div>
+      </div>
+      <div class="card">
+        <div class="label">Online Ratio</div>
+        <div class="value">100.0%</div>
+      </div>
+      <div class="card">
+        <div class="label">Avg Latency</div>
+        <div class="value">1.0 ms</div>
+      </div>
+      <div class="card">
+        <div class="label">Web Endpoints</div>
+        <div class="value">1</div>
+      </div>
+      <div class="card">
+        <div class="label">SNMP Enabled</div>
+        <div class="value">0</div>
+      </div>
+      <div class="card">
+        <div class="label">Max Latency</div>
+        <div class="value">1.0 ms</div>
+      </div>
+    </div>
+
+    <div class="split">
+      <div class="panel">
+        <h2>Most Common Open Ports</h2>
+        <div class="bar-row"><div class="bar-label" title="80">80</div><div class="bar-track"><div class="bar-fill" style="width: 320px"></div></div><div class="bar-meta">1 (100%)</div></div>
+<div class="bar-row"><div class="bar-label" title="445">445</div><div class="bar-track"><div class="bar-fill" style="width: 320px"></div></div><div class="bar-meta">1 (100%)</div></div>
+      </div>
+      <div class="panel">
+        <h2>OS Hints (from device_hints)</h2>
+        <div class="bar-row"><div class="bar-label" title="Windows">Windows</div><div class="bar-track"><div class="bar-fill" style="width: 320px"></div></div><div class="bar-meta">3 (100%)</div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Host Details</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>IP</th>
+              <th>Status</th>
+              <th>Hostname</th>
+              <th>TTL</th>
+              <th>Latency (ms)</th>
+              <th>Open Ports</th>
+              <th>Device Hints</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>127.0.0.1</td><td><span class="pill up">Online</span></td><td>DESKTOP-RP5119V</td><td>128</td><td>1</td><td>80, 445</td><td>possible Windows/SMB host; has web interface; possible Windows/IIS server; possible Windows device (TTL near 128)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
