@@ -248,9 +248,15 @@ class DashboardHandler(BaseHTTPRequestHandler):
         message = query.get("message", [""])[0]
         level = query.get("level", ["info"])[0]
 
+        # Restore the submitted form values carried in the redirect URL.
+        form_values = dict(self.server.form_defaults)
+        for key in ("cidr", "workers", "timeout", "port_timeout", "ports", "snmp_community"):
+            if key in query:
+                form_values[key] = query[key][0]
+
         page = build_dashboard_page(
             self.server.results_path,
-            self.server.form_defaults,
+            form_values,
             message,
             level,
         )
@@ -271,21 +277,28 @@ class DashboardHandler(BaseHTTPRequestHandler):
         payload = self.rfile.read(content_length).decode("utf-8", errors="ignore")
         form = parse_qs(payload)
 
+        # Capture raw submitted values so we can re-populate the form after redirect.
+        raw = {
+            "cidr": form.get("cidr", [self.server.form_defaults["cidr"]])[0].strip(),
+            "workers": form.get("workers", [self.server.form_defaults["workers"]])[0].strip(),
+            "timeout": form.get("timeout", [self.server.form_defaults["timeout"]])[0].strip(),
+            "port_timeout": form.get("port_timeout", [self.server.form_defaults["port_timeout"]])[0].strip(),
+            "ports": form.get("ports", [self.server.form_defaults["ports"]])[0].strip(),
+            "snmp_community": (form.get("snmp_community", [self.server.form_defaults["snmp_community"]])[0].strip() or "public"),
+        }
+
         try:
-            cidr = form.get("cidr", [""])[0].strip()
+            cidr = raw["cidr"]
             if not cidr:
                 raise ValueError("CIDR is required")
 
-            workers = parse_positive_int(form.get("workers", [self.server.form_defaults["workers"]])[0], "workers")
-            timeout = parse_positive_float(form.get("timeout", [self.server.form_defaults["timeout"]])[0], "timeout")
-            port_timeout = parse_positive_float(
-                form.get("port_timeout", [self.server.form_defaults["port_timeout"]])[0],
-                "port-timeout",
-            )
-            ports = validate_ports(form.get("ports", [self.server.form_defaults["ports"]])[0])
+            workers = parse_positive_int(raw["workers"], "workers")
+            timeout = parse_positive_float(raw["timeout"], "timeout")
+            port_timeout = parse_positive_float(raw["port_timeout"], "port-timeout")
+            ports = validate_ports(raw["ports"])
             snmp = "snmp" in form
             online_only = "online_only" in form
-            snmp_community = form.get("snmp_community", [self.server.form_defaults["snmp_community"]])[0].strip() or "public"
+            snmp_community = raw["snmp_community"]
 
             command = [
                 sys.executable,
@@ -312,18 +325,23 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
             if completed.returncode == 0:
                 scanned_hosts = count_scanned_hosts(output_text)
-                message = f"Scan finished successfully. Scanned hosts: {scanned_hosts}."
+                message = f"Scan of {cidr} finished. Hosts scanned: {scanned_hosts}."
                 level = "success"
             else:
-                condensed = " ".join(output_text.strip().splitlines()[-2:]).strip()
-                message = f"Scan failed (exit {completed.returncode}). {condensed or 'Check terminal output.'}"
+                # Show last 5 lines so error context is visible in the dashboard.
+                condensed = " | ".join(
+                    line for line in output_text.strip().splitlines()[-5:] if line.strip()
+                )
+                message = f"Scan of {cidr} failed (exit {completed.returncode}). {condensed or 'Check terminal output.'}"
                 level = "error"
 
         except Exception as exc:
             message = f"Scan request error: {exc}"
             level = "error"
 
-        target = f"/?level={quote_plus(level)}&message={quote_plus(message)}"
+        # Carry submitted form values back so the form re-populates after redirect.
+        form_params = "&".join(f"{k}={quote_plus(v)}" for k, v in raw.items())
+        target = f"/?level={quote_plus(level)}&message={quote_plus(message)}&{form_params}"
         self.send_response(HTTPStatus.SEE_OTHER)
         self.send_header("Location", target)
         self.end_headers()
