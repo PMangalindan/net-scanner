@@ -28,6 +28,29 @@ from visualize_scan_results import load_results, render_html, safe_html
 log = logging.getLogger("scan_dashboard")
 
 
+def find_scanner_python(scanner_path: Path) -> Path:
+    """Prefer the project venv Python so SNMP uses the same environment everywhere."""
+
+    candidates = [
+        scanner_path.parent / "myenv" / "Scripts" / "python.exe",
+        scanner_path.parent / "myenv" / "Scripts" / "python",
+        scanner_path.parent.parent / "myenv" / "Scripts" / "python.exe",
+        scanner_path.parent.parent / "myenv" / "Scripts" / "python",
+        Path(sys.executable),
+    ]
+
+    seen: set[Path] = set()
+    for candidate in candidates:
+        candidate = candidate.expanduser()
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        if candidate.exists():
+            return candidate.resolve()
+
+    return Path(sys.executable).resolve()
+
+
 def setup_logging(log_file: Path | None, debug: bool) -> None:
     level = logging.DEBUG if debug else logging.INFO
     fmt = logging.Formatter(
@@ -377,9 +400,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
             snmp = "snmp" in form
             online_only = "online_only" in form
             snmp_community = raw["snmp_community"]
+            python_executable = find_scanner_python(self.server.scanner_path)
 
             command = [
-                sys.executable,
+                str(python_executable),
                 str(self.server.scanner_path),
                 cidr,
                 "--workers",
@@ -400,6 +424,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
             log.info("Scan starting: cidr=%s workers=%s timeout=%s port_timeout=%s ports=%s snmp=%s",
                      cidr, workers, timeout, port_timeout, ports, snmp)
+            log.debug("Scanner Python: %s", python_executable)
             log.debug("Scan command: %s", " ".join(command))
 
             completed = subprocess.run(command, capture_output=True, text=True, check=False)
