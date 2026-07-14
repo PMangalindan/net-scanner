@@ -34,8 +34,12 @@ def find_scanner_python(scanner_path: Path) -> Path:
     candidates = [
         scanner_path.parent / "myenv" / "Scripts" / "python.exe",
         scanner_path.parent / "myenv" / "Scripts" / "python",
+        scanner_path.parent / "myenv" / "bin" / "python3",
+        scanner_path.parent / "myenv" / "bin" / "python",
         scanner_path.parent.parent / "myenv" / "Scripts" / "python.exe",
         scanner_path.parent.parent / "myenv" / "Scripts" / "python",
+        scanner_path.parent.parent / "myenv" / "bin" / "python3",
+        scanner_path.parent.parent / "myenv" / "bin" / "python",
         Path(sys.executable),
     ]
 

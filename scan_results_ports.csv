@@ -1,0 +1,4 @@
+"ip","online","status","latency_ms","ttl","hostname","mac_address","open_ports","http_title","http_server","http_status","ssh_banner","snmp_enabled","snmp_sys_descr","snmp_sys_object_id","snmp_sys_contact","snmp_sys_name","snmp_sys_location","device_hints","checked_at"
+"192.168.20.1","True","online","0.585","64","_gateway","d8:9d:67:c6:a3:8f","8443;8444",,,,,"False",,,,,,"possible Linux/Unix device (TTL near 64)","24/06/2026 1:21:30 am"
+"192.168.20.171","True","online","0.358","64",,"bc:24:11:5f:74:3b","8443",,,,,"False",,,,,,"possible Linux/Unix device (TTL near 64)","24/06/2026 1:21:35 am"
+"192.168.20.181","True","online","0.047","64","ase-kuber-control",,"8443;8444;8445;9099",,,,,"False",,,,,,"possible Linux/Unix device (TTL near 64)","24/06/2026 1:21:35 am"
